@@ -15,7 +15,6 @@ typedef struct {
     int size;
     char **queue;
     sem_t mutex;
-    char s;
 } CoEditor;
 
 
@@ -72,7 +71,6 @@ void insertItem(Producer *producer, char *item) {
     // printf("Insert - Slots semaphore value: %d\n", semaphoreValue);
     sem_wait(&producer->slots);  // Wait for an available slot in the queue
     sem_wait(&producer->mutex);  // Acquire the mutex to access the queue
-
     // Insert the item into the queue
     producer->queue[producer->rear] = item;
     producer->rear = (producer->rear + 1) % producer->queue_size;
@@ -80,7 +78,6 @@ void insertItem(Producer *producer, char *item) {
     sem_post(&producer->mutex);  // Release the mutex
     sem_post(&producer->items);  // Signal that an item has been inserted
     //printf("Item inserted: %s\n", item);  // Print the inserted item
-
 }
 
 char *removeItem(Producer *producer) {
@@ -114,7 +111,7 @@ int countDigitsOfNum(int num) {
 }
 
 
-Producer createProducer(int producer_id, int product_num, int queue_size) {
+Producer *createProducer(int producer_id, int product_num, int queue_size) {
     Producer *producer = malloc(sizeof(*producer));
     producer->id = producer_id;
     producer->product_num = product_num;
@@ -145,15 +142,16 @@ Producer createProducer(int producer_id, int product_num, int queue_size) {
         printf("Memory allocation failed.\n");
         //TODO return error
     }
-    return *producer;
+    return producer;
 }
 
 int readConfFile(FILE *file) {
     int producer_args, argOne, argTwo, argThree;
     while ((producer_args = fscanf(file, "%d\n%d\n%d\n\n", &argOne, &argTwo, &argThree)) && producer_args == 3) {
-        Producer producer = createProducer(argOne, argTwo, argThree);
-        producers[producerCount] = producer;
+        Producer *producer = createProducer(argOne, argTwo, argThree);
+        producers[producerCount] = *producer;
         producerCount++;
+        free(producer);
     }
     int coEditorCapacity = argOne;
     for (int i = 0; i < producerCount; i++) {
@@ -164,8 +162,7 @@ int readConfFile(FILE *file) {
     return coEditorCapacity;
 }
 
-
-int createProduct(Producer *producer) {
+void createProduct(Producer *producer) {
     char *s = NULL;
     for (int i = 0; i < producer->product_num; i++) {
         // Generate a random number between 0 and 2
@@ -196,6 +193,7 @@ int createProduct(Producer *producer) {
                 break;
         }
         insertItem(producer, s);  // Insert the item into the queue
+        //free(s);
         // printf("%s\n", s);
         //removeItem(producer);
     }
@@ -224,10 +222,8 @@ void createCoEditor() {
         sem_init(&tempEditor->mutex, 0, 1);  // Initialize mutex semaphore to 1 (available)
         tempEditor->size = 0;
         tempEditor->queue = NULL;
-        char *c = "s";
-        tempEditor->s = *c;
         coEditors[i] = *tempEditor;
-        // free(tempEditor);
+        free(tempEditor);
     }
 }
 
@@ -254,6 +250,7 @@ void insertCoEditor(CoEditor *coEditor, char *s) {
     //printf("Added string:%d %s\n", lineCounter, s);
     // Release the mutex lock
     sem_post(&coEditor->mutex);
+
 }
 
 char *removeCoEditor(CoEditor *coEditor) {
@@ -290,7 +287,7 @@ void dispatcher() {
         if (strcmp(s, "DONE") == 0) {
             producers[start].queue_size = 0;
             end++;
-            //free(s);
+         //  free(s);
             continue;
         }
         // Iterate through the NEWS or SPORTS or WEATHER strings and check for a match
@@ -300,13 +297,14 @@ void dispatcher() {
                 break;
             }
         }
-        //  free(s);
+          free(s);
     }
     insertCoEditor(&coEditors[0], "DONE");
     insertCoEditor(&coEditors[1], "DONE");
     insertCoEditor(&coEditors[2], "DONE");
-
 }
+
+
 
 void insertScreen(char *item) {
     sem_wait(&(screen)->empty);
@@ -321,6 +319,9 @@ void insertScreen(char *item) {
     (screen)->currentCapacity++;
     pthread_mutex_unlock(&(screen)->mutex);
     sem_post(&(screen)->full);
+
+    // Free the allocated memory
+  //  free(item);
 }
 
 void screenManger(CoEditor *coEditor) {
@@ -330,10 +331,12 @@ void screenManger(CoEditor *coEditor) {
         if (strlen(item) == 0)
             continue;
         if (strcmp(item, "DONE") == 0) {
+            free(item);
             break;
         }
         usleep(100 * 1000);
         insertScreen(item);
+        free(item);
     }
     insertScreen("DONE");
 }
@@ -376,44 +379,17 @@ void printToScreen() {
             }
             if (strcmp(item, "DONE") == 0) {
                 doneCounter++;
-                // free(s);
+                 free(item);
                 continue;
             }
             lineCounter3++;
             printf("%d :%s\n",lineCounter3, item);
-            //free(s);
+            free(item);
         }
         printf("DONE\n");
     }
 }
 
-
-void freeMemory() {
-    // Free BoundedBuffers
-    for (int i = 0; i < producerCount; i++) {
-        if (&producers[i] != NULL) {
-            if (producers[i].queue != NULL) {
-                free(producers[i].queue);
-            }
-            free(&producers[i]);
-        }
-    }
-    free(producers);
-
-    for (int i = 0; i < 3; i++) {
-        if (&coEditors[i] != NULL) {
-            free(&coEditors[i]);
-        }
-    }
-    free(coEditors);
-
-    if (screen != NULL) {
-        if (screen->queue != NULL) {
-            free(screen->queue);
-        }
-        free(screen);
-    }
-}
 void freeGlobals() {
     // Free memory for producers
     if (producers != NULL) {
@@ -461,6 +437,41 @@ void freeGlobals() {
     }
 }
 
+void freeMemory() {
+    // Free memory for producers
+    for (int i = 0; i < producerCount; i++) {
+        sem_destroy(&producers[i].items);
+        sem_destroy(&producers[i].slots);
+        sem_destroy(&producers[i].mutex);
+        for (int j = 0; j < producers[i].queue_size; j++) {
+            free(producers[i].queue[j]);
+        }
+        free(producers[i].queue);
+    }
+    free(producers);
+
+    // Free memory for coEditors
+    for (int i = 0; i < 3; i++) {
+        sem_destroy(&coEditors[i].mutex);
+        for (int j = 0; j < coEditors[i].size; j++) {
+            free(coEditors[i].queue[j]);
+        }
+        free(coEditors[i].queue);
+    }
+    free(coEditors);
+
+    // Free memory for screenManager
+    pthread_mutex_destroy(&screen->mutex);
+    sem_destroy(&screen->full);
+    sem_destroy(&screen->empty);
+    for (int i = 0; i < screen->currentCapacity; i++) {
+        free(screen->queue[i]);
+    }
+    free(screen->queue);
+    free(screen);
+}
+
+
 
 int main(int argc, char *argv[]) {
     if (argc != 2) {
@@ -485,10 +496,12 @@ int main(int argc, char *argv[]) {
 
     pthread_create(&threads[producerCount + 2], NULL, (void *) screenManger, &coEditors[1]);
     pthread_create(&threads[producerCount + 3], NULL, (void *) screenManger, &coEditors[2]);
+
     printToScreen();
     for (int i = 0; i < producerCount + 4; i++) {
         pthread_join(threads[i], NULL);
     }
+    freeMemory();
 
 //    screenManger(&coEditors[0]);
 //    screenManger(&coEditors[1]);
@@ -513,7 +526,7 @@ int main(int argc, char *argv[]) {
 //        sem_destroy(&producers[i].mutex);
 //        //free(producers[i].queue);
 //    }
-    freeGlobals();
+    //freeGlobals();
     fclose(file);
     return 0;
 }
