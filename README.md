@@ -47,14 +47,16 @@ The assignment reads a configuration file to determine the number of producers, 
 3. Run the following command to clone the repository to your local machine:
 git clone https://github.com/guyreuveni33/OperatingSystemAss3.git
 
-4.Compile the Code:
+4.Use the cd command to access the cloned directory
+
+5.Compile the Code:
 gcc main.c -lpthread
 
-5. Execute the program with a configuration file as a command-line argument: `./a.out confFileExample.txt`.
+6. Execute the program with a configuration file as a command-line argument: `./a.out confFileExample.txt`.
 
-6. The program will read the configuration, create producer threads, co-editor threads, a dispatcher thread, and a screen manager thread.
+7. The program will read the configuration, create producer threads, co-editor threads, a dispatcher thread, and a screen manager thread.
 
-7. Producers will generate news stories and send them to the dispatcher via bounded buffers.
+8. Producers will generate news stories and send them to the dispatcher via bounded buffers.
 
 8. The dispatcher will categorize messages and pass them to the appropriate co-editors.
 
