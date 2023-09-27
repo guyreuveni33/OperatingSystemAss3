@@ -4,6 +4,9 @@
 
 The C code simulates a news broadcasting system with concurrent producers, dispatchers, co-editors, and a screen manager. It aims to demonstrate concurrent programming and synchronization concepts.
 
+<img src="https://i.postimg.cc/G3kTX7v6/OS3.png" alt="Image" width="700" height="600">
+
+
 ### Components
 
 1. **Producers**: Producers generate strings representing news stories with specific formats and categories (SPORTS, NEWS, WEATHER). These stories are placed in producer-specific queues.
